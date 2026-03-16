@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Decorate the Dungeon — Mrs Dalloway</title>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --text: #3B3C40;
+    --cream: #E3D1BB;
+    --gold: #E5B718;
+    --font: 'EB Garamond', serif;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: var(--font);
+    font-weight: 600;
+    color: var(--text);
+    background: #000;
+  }
+
+  /* ===== PERSISTENT BACKGROUND ===== */
+  #background {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: url('assets/background.png') center center / cover no-repeat;
+  }
+
+  /* ===== SCREENS ===== */
+  .screen {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1s ease;
+  }
+  .screen.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* ===== COVER SCREEN ===== */
+  #cover-screen {
+    z-index: 10;
+    background: rgba(0,0,0,0.5);
+  }
+  #cover-screen img {
+    max-height: 70vh;
+    max-width: 80vw;
+    object-fit: contain;
+    filter: drop-shadow(0 0 80px rgba(227, 209, 187, 0.6)) drop-shadow(0 0 160px rgba(227, 209, 187, 0.3));
+  }
+
+  /* ===== QUOTE SCREEN ===== */
+  #quote-screen {
+    z-index: 9;
+    cursor: pointer;
+    flex-direction: column;
+    background: rgba(0,0,0,0.45);
+  }
+  .quote-panel {
+    background: var(--cream);
+    box-shadow: inset 0 0 0 3px var(--gold);
+    padding: 40px 60px;
+    max-width: 780px;
+    width: 90vw;
+    border-radius: 16px;
+    text-align: center;
+    position: relative;
+  }
+  .quote-panel p {
+    font-style: italic;
+    font-size: clamp(15px, 2vw, 19px);
+    line-height: 1.7;
+    color: var(--text);
+  }
+  .quote-panel .attribution {
+    margin-top: 16px;
+    font-style: normal;
+    font-size: clamp(13px, 1.5vw, 16px);
+    opacity: 0.7;
+  }
+
+  /* ===== DUNGEON SCREEN ===== */
+  #dungeon-screen {
+    z-index: 5;
+    flex-direction: column;
+  }
+
+  /* Book icon (quote button) */
+  .quote-btn {
+    position: absolute;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    cursor: pointer;
+    z-index: 20;
+    width: 60px;
+    height: 60px;
+    background: none;
+    border: none;
+    transition: transform 0.3s;
+  }
+  .quote-btn:hover {
+    transform: translateX(-50%) scale(1.1);
+  }
+  .quote-btn img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  /* ===== ORB AREA ===== */
+  .orb-field {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+  }
+
+  .orb-slot {
+    position: absolute;
+    width: 120px;
+    height: 120px;
+    margin-left: -60px;
+    margin-top: -60px;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+  }
+  .orb-slot:hover {
+    transform: scale(1.08);
+  }
+
+  /* Position each orb */
+  .orb-slot[data-index="0"] { left: 16%; top: 50%; }
+  .orb-slot[data-index="1"] { left: 32%; top: 44%; }
+  .orb-slot[data-index="2"] { left: 50%; top: 48%; }
+  .orb-slot[data-index="3"] { left: 68%; top: 44%; }
+  .orb-slot[data-index="4"] { left: 84%; top: 50%; }
+
+  .orb-glow {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+  }
+
+  /* Dim state: subtle warm glow */
+  .orb-layer {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    transition: opacity 0.8s ease;
+  }
+  .orb-layer.dim {
+    background: radial-gradient(circle,
+      rgba(227,209,187,0.85) 0%,
+      rgba(227,209,187,0.45) 20%,
+      rgba(227,209,187,0.12) 40%,
+      transparent 60%
+    );
+    opacity: 1;
+  }
+  /* Bright state: fuller warm glow */
+  .orb-layer.bright {
+    background: radial-gradient(circle,
+      rgba(227,209,187,1) 0%,
+      rgba(227,209,187,0.8) 15%,
+      rgba(227,209,187,0.35) 35%,
+      transparent 55%
+    );
+    opacity: 0;
+  }
+  /* Hover state: gold ring + bright glow */
+  .orb-layer.hover-ring {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    background: radial-gradient(circle,
+      var(--cream) 18%,
+      transparent 19%
+    );
+    /* Gold ring via box-shadow */
+    box-shadow: none;
+  }
+  .orb-layer.hover-ring::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 44px; height: 44px;
+    margin-left: -22px; margin-top: -22px;
+    border-radius: 50%;
+    border: 2.5px solid var(--gold);
+    background: radial-gradient(circle,
+      rgba(227,209,187,0.95) 0%,
+      rgba(227,209,187,0.7) 40%,
+      transparent 70%
+    );
+    box-shadow: 0 0 30px 10px rgba(227,209,187,0.4);
+  }
+
+  .orb-slot:hover .orb-layer.hover-ring { opacity: 1; }
+  .orb-slot:hover .orb-layer.dim { opacity: 0; }
+  .orb-slot:hover .orb-layer.bright { opacity: 0; }
+
+  /* Collected ornament replaces orb */
+  .ornament-collected {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+    pointer-events: none;
+  }
+  .orb-slot.collected .ornament-collected {
+    opacity: 1;
+  }
+  .orb-slot.collected .orb-glow {
+    display: none;
+  }
+  .orb-slot.collected {
+    cursor: default;
+    width: 140px;
+    height: 140px;
+    margin-left: -70px;
+    margin-top: -70px;
+  }
+
+  /* ===== OVERLAY (ornament detail) ===== */
+  .overlay-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    background: rgba(0,0,0,0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+  }
+  .overlay-backdrop.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .overlay-panel {
+    position: relative;
+    background: var(--cream);
+    box-shadow: inset 0 0 0 3px var(--gold);
+    width: min(560px, 85vw);
+    max-height: 85vh;
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px;
+    gap: 20px;
+    overflow-y: auto;
+  }
+
+  .overlay-ornament-img {
+    width: 100%;
+    max-height: 50vh;
+    object-fit: contain;
+  }
+
+  .overlay-close-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 44px;
+    height: 44px;
+    cursor: pointer;
+    background: none;
+    border: none;
+    transition: transform 0.2s;
+  }
+  .overlay-close-btn:hover {
+    transform: scale(1.15);
+  }
+  .overlay-close-btn img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .overlay-text {
+    text-align: center;
+  }
+  .overlay-text .ornament-quote {
+    font-style: italic;
+    font-size: clamp(14px, 1.6vw, 17px);
+    line-height: 1.6;
+    color: var(--text);
+    margin-bottom: 14px;
+  }
+  .overlay-text .ornament-desc {
+    font-style: normal;
+    font-size: clamp(13px, 1.4vw, 16px);
+    line-height: 1.6;
+    color: var(--text);
+    opacity: 0.85;
+  }
+
+  /* ===== SUCCESS OVERLAY ===== */
+  .success-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+  }
+  .success-backdrop.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .success-panel {
+    background: var(--cream);
+    box-shadow: inset 0 0 0 3px var(--gold);
+    width: min(480px, 80vw);
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    gap: 16px;
+  }
+  .success-panel .flower-icon {
+    width: 50px;
+    height: 50px;
+    object-fit: contain;
+  }
+  .success-panel .success-text {
+    font-style: italic;
+    font-size: clamp(15px, 1.8vw, 19px);
+    text-align: center;
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .success-panel .success-ornament-img {
+    width: 120px;
+    height: 120px;
+    object-fit: contain;
+    margin-top: 8px;
+  }
+
+  /* ===== QUOTE OVERLAY (reopened) ===== */
+  .quote-overlay-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+  }
+  .quote-overlay-backdrop.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* ===== CONGRATS BANNER ===== */
+  .congrats-banner {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 15;
+    background: var(--cream);
+    box-shadow: inset 0 0 0 3px var(--gold);
+    padding: 30px 50px;
+    border-radius: 16px;
+    max-width: 780px;
+    width: 90vw;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    pointer-events: none;
+  }
+  .congrats-banner.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .congrats-banner .flower-icon {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+  .congrats-banner .congrats-text {
+    font-style: italic;
+    font-size: clamp(15px, 1.8vw, 19px);
+    text-align: center;
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  /* ===== PULSE ANIMATION ===== */
+  @keyframes pulse {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Persistent background -->
+<div id="background"></div>
+
+<!-- SCREEN 1: Book cover -->
+<div id="cover-screen" class="screen active">
+  <img src="assets/Mrs__Dalloway_cover_1.png" alt="Mrs Dalloway by Virginia Woolf">
+</div>
+
+<!-- SCREEN 2: Quote -->
+<div id="quote-screen" class="screen">
+  <div class="quote-panel">
+    <p>"As we are a doomed race, chained to a sinking ship, as the whole thing is a bad joke, let us, at any rate, do our part; mitigate the suffering of our fellow-prisoners; decorate the dungeon with flowers and air-cushions; be as decent as we possibly can."</p>
+    <p class="attribution">— Virginia Woolf, <em>Mrs Dalloway</em></p>
+  </div>
+</div>
+
+<!-- SCREEN 3: Dungeon -->
+<div id="dungeon-screen" class="screen">
+  <!-- Book icon to reopen quote -->
+  <button class="quote-btn" id="quoteBtn" title="Read the quote again">
+    <img src="assets/button-quote.png" alt="Open quote">
+  </button>
+
+  <!-- Orb field -->
+  <div class="orb-field" id="orbField">
+    <!-- 5 orbs generated by JS -->
+  </div>
+
+  <!-- Congrats banner -->
+  <div class="congrats-banner" id="congratsBanner">
+    <img src="assets/button-close-overlay.png" class="flower-icon" alt="">
+    <span class="congrats-text">Beautiful. Thank you for stopping by to decorate the dungeon.</span>
+    <img src="assets/button-close-overlay.png" class="flower-icon" alt="">
+  </div>
+</div>
+
+<!-- OVERLAY: Ornament detail -->
+<div class="overlay-backdrop" id="overlayBackdrop">
+  <div class="overlay-panel">
+    <img class="overlay-ornament-img" id="overlayImg" src="" alt="">
+    <div class="overlay-text">
+      <p class="ornament-quote" id="overlayQuote"></p>
+      <p class="ornament-desc" id="overlayDesc"></p>
+    </div>
+    <button class="overlay-close-btn" id="overlayCloseBtn">
+      <img src="assets/button-close-overlay.png" alt="Close">
+    </button>
+  </div>
+</div>
+
+<!-- SUCCESS OVERLAY -->
+<div class="success-backdrop" id="successBackdrop">
+  <div class="success-panel">
+    <img src="assets/button-close-overlay.png" class="flower-icon" alt="">
+    <p class="success-text">Thank you for decorating the dungeon with this ornament!</p>
+    <img class="success-ornament-img" id="successOrnamentImg" src="" alt="">
+  </div>
+</div>
+
+<!-- QUOTE OVERLAY (reopened from book icon) -->
+<div class="quote-overlay-backdrop" id="quoteOverlayBackdrop">
+  <div class="quote-panel">
+    <p>"As we are a doomed race, chained to a sinking ship, as the whole thing is a bad joke, let us, at any rate, do our part; mitigate the suffering of our fellow-prisoners; decorate the dungeon with flowers and air-cushions; be as decent as we possibly can."</p>
+    <p class="attribution">— Virginia Woolf, <em>Mrs Dalloway</em></p>
+  </div>
+</div>
+
+<script>
+  // ===== DATA =====
+  const ornaments = [
+    {
+      image: 'assets/ornament-1.png',
+      quote: '\u201Cthe light in the Abbey was bodiless, to aspire above the vanities, the desires, the commodities, to rid herself both of hatred and of love.\u201D',
+      desc: 'Westminster Abbey\u2019s pinnacles on the buttresses are structural counterweights, but they were carved into something beautiful and reaching.'
+    },
+    {
+      image: 'assets/ornament-2.png',
+      quote: '\u201Cthe cathedral offers company, he thought, invites you to membership of a society; great men belong to it; martyrs have died for it; why not enter in\u201D',
+      desc: 'Instead of a plain gate at St. Paul\u2019s, the scrollwork exists to make the barrier beautiful enough that crossing it feels like it means something.'
+    },
+    {
+      image: 'assets/ornament-3.png',
+      quote: '\u201CSomerset House. It looked so splendid, so serious, that great grey building.\u201D',
+      desc: 'The archways, keystones, and columns of Somerset House relied on ornamentation to convey its purpose.'
+    },
+    {
+      image: 'assets/ornament-4.png',
+      quote: '\u201CAs for Buckingham Palace (like an old prima donna facing the audience all in white) you can\u2019t deny it a certain dignity\u201D',
+      desc: 'The entire facade of Buckingham Palace is ornamental, it was decoratively applied to the existing structure.'
+    },
+    {
+      image: 'assets/ornament-5.png',
+      quote: '\u201CIt was precisely twelve o\u2019clock; twelve by Big Ben; whose stroke was wafted over the northern part of London...mixed in a thin ethereal way with the clouds and wisps of smoke...\u201D',
+      desc: 'Big Ben consists of individual opalescent glass pieces that are held together by a radial patterned cast iron framework.'
+    }
+  ];
+
+  // ===== ELEMENTS =====
+  const coverScreen = document.getElementById('cover-screen');
+  const quoteScreen = document.getElementById('quote-screen');
+  const dungeonScreen = document.getElementById('dungeon-screen');
+  const orbField = document.getElementById('orbField');
+  const quoteBtn = document.getElementById('quoteBtn');
+  const overlayBackdrop = document.getElementById('overlayBackdrop');
+  const overlayImg = document.getElementById('overlayImg');
+  const overlayQuote = document.getElementById('overlayQuote');
+  const overlayDesc = document.getElementById('overlayDesc');
+  const overlayCloseBtn = document.getElementById('overlayCloseBtn');
+  const successBackdrop = document.getElementById('successBackdrop');
+  const successOrnamentImg = document.getElementById('successOrnamentImg');
+  const quoteOverlayBackdrop = document.getElementById('quoteOverlayBackdrop');
+  const congratsBanner = document.getElementById('congratsBanner');
+
+  let collectedCount = 0;
+  let currentOrbIndex = -1;
+  let orbSlots = [];
+
+  // ===== BUILD ORBS =====
+  ornaments.forEach((orn, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'orb-slot';
+    slot.dataset.index = i;
+
+    // Pulsing orb (CSS gradients)
+    const glow = document.createElement('div');
+    glow.className = 'orb-glow';
+
+    const dim = document.createElement('div');
+    dim.className = 'orb-layer dim';
+
+    const bright = document.createElement('div');
+    bright.className = 'orb-layer bright';
+
+    const hover = document.createElement('div');
+    hover.className = 'orb-layer hover-ring';
+
+    glow.appendChild(dim);
+    glow.appendChild(bright);
+    glow.appendChild(hover);
+    slot.appendChild(glow);
+
+    // Collected ornament image (hidden initially)
+    const collected = document.createElement('img');
+    collected.className = 'ornament-collected';
+    collected.src = orn.image;
+    collected.alt = '';
+    slot.appendChild(collected);
+
+    // Pulse animation with staggered intervals
+    const pulseSpeed = 2.5 + (i * 0.7);
+    const pulseDelay = i * 0.5;
+    bright.style.animation = `pulse ${pulseSpeed}s ease-in-out ${pulseDelay}s infinite`;
+
+    // Click handler
+    slot.addEventListener('click', () => {
+      if (slot.classList.contains('collected')) return;
+      currentOrbIndex = i;
+      openOverlay(i);
+    });
+
+    orbField.appendChild(slot);
+    orbSlots.push(slot);
+  });
+
+  // ===== SCREEN FLOW =====
+  // Cover → fade after 1.5s
+  setTimeout(() => {
+    coverScreen.classList.remove('active');
+    quoteScreen.classList.add('active');
+
+    // Quote → auto-advance after 7s
+    quoteTimer = setTimeout(advanceToQuote, 7000);
+  }, 1500);
+
+  let quoteTimer;
+  function advanceToQuote() {
+    clearTimeout(quoteTimer);
+    quoteScreen.classList.remove('active');
+    dungeonScreen.classList.add('active');
+  }
+
+  // Click to skip quote
+  quoteScreen.addEventListener('click', advanceToQuote);
+
+  // ===== QUOTE BUTTON (reopen) =====
+  quoteBtn.addEventListener('click', () => {
+    quoteOverlayBackdrop.classList.add('visible');
+  });
+  quoteOverlayBackdrop.addEventListener('click', () => {
+    quoteOverlayBackdrop.classList.remove('visible');
+  });
+
+  // ===== OVERLAY =====
+  function openOverlay(index) {
+    const orn = ornaments[index];
+    overlayImg.src = orn.image;
+    overlayQuote.textContent = orn.quote;
+    overlayDesc.textContent = orn.desc;
+    overlayBackdrop.classList.add('visible');
+  }
+
+  function closeOverlay() {
+    overlayBackdrop.classList.remove('visible');
+    // Show success after overlay fades
+    setTimeout(() => showSuccess(currentOrbIndex), 500);
+  }
+
+  overlayCloseBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeOverlay();
+  });
+  overlayBackdrop.addEventListener('click', (e) => {
+    if (e.target === overlayBackdrop) closeOverlay();
+  });
+
+  // ===== SUCCESS =====
+  function showSuccess(index) {
+    successOrnamentImg.src = ornaments[index].image;
+    successBackdrop.classList.add('visible');
+
+    setTimeout(() => {
+      successBackdrop.classList.remove('visible');
+      // After success fades, replace orb with ornament
+      setTimeout(() => {
+        collectOrb(index);
+      }, 500);
+    }, 2000);
+  }
+
+  function collectOrb(index) {
+    orbSlots[index].classList.add('collected');
+    collectedCount++;
+
+    if (collectedCount === 5) {
+      setTimeout(() => {
+        congratsBanner.classList.add('visible');
+      }, 600);
+    }
+  }
+</script>
+
+</body>
+</html>
