@@ -31,6 +31,8 @@
     inset: 0;
     z-index: 0;
     background: url('assets/background.png') center center / cover no-repeat;
+    opacity: 0;
+    transition: opacity 0.8s ease;
   }
 
   /* ===== SCREENS ===== */
@@ -98,7 +100,7 @@
     flex-direction: column;
   }
 
-  /* Book icon (quote button) */
+  /* Book icon (opens text file) */
   .quote-btn {
     position: absolute;
     top: 30px;
@@ -108,8 +110,8 @@
     z-index: 20;
     width: 60px;
     height: 60px;
-    background: none;
-    border: none;
+    display: block;
+    text-decoration: none;
     transition: transform 0.3s;
   }
   .quote-btn:hover {
@@ -364,23 +366,6 @@
     margin-top: 8px;
   }
 
-  /* ===== QUOTE OVERLAY (reopened) ===== */
-  .quote-overlay-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 55;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0,0,0,0.45);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.5s ease;
-  }
-  .quote-overlay-backdrop.visible {
-    opacity: 1;
-    pointer-events: auto;
-  }
 
   /* ===== CONGRATS BANNER ===== */
   .congrats-banner {
@@ -448,10 +433,10 @@
 
 <!-- SCREEN 3: Dungeon -->
 <div id="dungeon-screen" class="screen">
-  <!-- Book icon to reopen quote -->
-  <button class="quote-btn" id="quoteBtn" title="Read the quote again">
-    <img src="assets/button-quote.png" alt="Open quote">
-  </button>
+  <!-- Book icon — opens text file in new tab -->
+  <a class="quote-btn" href="assets/mrs-dalloway-text.txt" target="_blank" title="Read the full text">
+    <img src="assets/button-quote.png" alt="Open text">
+  </a>
 
   <!-- Orb field -->
   <div class="orb-field" id="orbField">
@@ -489,13 +474,7 @@
   </div>
 </div>
 
-<!-- QUOTE OVERLAY (reopened from book icon) -->
-<div class="quote-overlay-backdrop" id="quoteOverlayBackdrop">
-  <div class="quote-panel">
-    <p>"As we are a doomed race, chained to a sinking ship, as the whole thing is a bad joke, let us, at any rate, do our part; mitigate the suffering of our fellow-prisoners; decorate the dungeon with flowers and air-cushions; be as decent as we possibly can."</p>
-    <p class="attribution">— Virginia Woolf, <em>Mrs Dalloway</em></p>
-  </div>
-</div>
+
 
 <script>
   // ===== DATA =====
@@ -532,7 +511,6 @@
   const quoteScreen = document.getElementById('quote-screen');
   const dungeonScreen = document.getElementById('dungeon-screen');
   const orbField = document.getElementById('orbField');
-  const quoteBtn = document.getElementById('quoteBtn');
   const overlayBackdrop = document.getElementById('overlayBackdrop');
   const overlayImg = document.getElementById('overlayImg');
   const overlayQuote = document.getElementById('overlayQuote');
@@ -540,8 +518,8 @@
   const overlayCloseBtn = document.getElementById('overlayCloseBtn');
   const successBackdrop = document.getElementById('successBackdrop');
   const successOrnamentImg = document.getElementById('successOrnamentImg');
-  const quoteOverlayBackdrop = document.getElementById('quoteOverlayBackdrop');
   const congratsBanner = document.getElementById('congratsBanner');
+  const bg = document.getElementById('background');
 
   let collectedCount = 0;
   let currentOrbIndex = -1;
@@ -614,13 +592,7 @@
   // Click to skip quote
   quoteScreen.addEventListener('click', advanceToQuote);
 
-  // ===== QUOTE BUTTON (reopen) =====
-  quoteBtn.addEventListener('click', () => {
-    quoteOverlayBackdrop.classList.add('visible');
-  });
-  quoteOverlayBackdrop.addEventListener('click', () => {
-    quoteOverlayBackdrop.classList.remove('visible');
-  });
+  // ===== QUOTE BUTTON — now an <a> link, no JS needed =====
 
   // ===== OVERLAY =====
   function openOverlay(index) {
@@ -633,8 +605,12 @@
 
   function closeOverlay() {
     overlayBackdrop.classList.remove('visible');
-    // Show success after overlay fades
-    setTimeout(() => showSuccess(currentOrbIndex), 500);
+    // Show success only for the first orb collected
+    if (collectedCount === 0) {
+      setTimeout(() => showSuccess(currentOrbIndex), 500);
+    } else {
+      setTimeout(() => collectOrb(currentOrbIndex), 500);
+    }
   }
 
   overlayCloseBtn.addEventListener('click', (e) => {
@@ -652,7 +628,6 @@
 
     setTimeout(() => {
       successBackdrop.classList.remove('visible');
-      // After success fades, replace orb with ornament
       setTimeout(() => {
         collectOrb(index);
       }, 500);
@@ -662,6 +637,9 @@
   function collectOrb(index) {
     orbSlots[index].classList.add('collected');
     collectedCount++;
+
+    // Increase background opacity by 20% per orb
+    bg.style.opacity = collectedCount * 0.2;
 
     if (collectedCount === 5) {
       setTimeout(() => {
